@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: insomnia-research-backend
+    environment:
+      APP_DATABASE_URL: sqlite:///./data/app.db
+      APP_BACKEND_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: insomnia-research-frontend
+    environment:
+      VITE_PROXY_TARGET: http://backend:8000
+      VITE_API_BASE_URL: /api/v1
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"

@@ -1,0 +1,133 @@
+{
+  "engine_name": "规则/评分版推荐引擎",
+  "engine_version": "V1",
+  "model_version_name": "规则评分引擎V1",
+  "base_benefit_score": 50,
+  "thresholds": {
+    "recommend_min_score": 72,
+    "cautious_min_score": 50,
+    "min_completeness_for_recommend": 70,
+    "min_completeness_for_cautious": 45
+  },
+  "completeness_fields": [
+    { "label": "作息", "path": "baseline_feature.work_rest_schedule", "weight": 8 },
+    { "label": "病程", "path": "baseline_feature.disease_duration", "weight": 8 },
+    { "label": "用药信息", "path": "baseline_feature.medication_usage", "weight": 8 },
+    { "label": "PSQI", "path": "questionnaire_score.psqi_score", "weight": 10 },
+    { "label": "ISI", "path": "questionnaire_score.isi_score", "weight": 10 },
+    { "label": "焦虑评分", "path": "questionnaire_score.anxiety_score", "weight": 8 },
+    { "label": "抑郁评分", "path": "questionnaire_score.depression_score", "weight": 8 },
+    { "label": "总睡眠时间", "path": "sleep_metric.total_sleep_time_hours", "weight": 10 },
+    { "label": "入睡潜伏期", "path": "sleep_metric.sleep_latency_minutes", "weight": 10 },
+    { "label": "睡眠效率", "path": "sleep_metric.sleep_efficiency", "weight": 12 },
+    { "label": "依从性信息", "path": "light_intervention.adherence", "weight": 4 },
+    { "label": "随访主要结局", "path": "followup_outcome.primary_outcome", "weight": 4 }
+  ],
+  "score_rules": [
+    {
+      "id": "isi_high",
+      "label": "中重度失眠症状",
+      "field_path": "questionnaire_score.isi_score",
+      "operator": ">=",
+      "value": 15,
+      "score_delta": 18,
+      "factor_text": "ISI 评分提示失眠症状较明显，存在较高科研干预观察价值"
+    },
+    {
+      "id": "psqi_high",
+      "label": "睡眠质量较差",
+      "field_path": "questionnaire_score.psqi_score",
+      "operator": ">=",
+      "value": 10,
+      "score_delta": 15,
+      "factor_text": "PSQI 评分较高，提示主观睡眠质量偏差"
+    },
+    {
+      "id": "sleep_efficiency_low",
+      "label": "睡眠效率偏低",
+      "field_path": "sleep_metric.sleep_efficiency",
+      "operator": "<",
+      "value": 80,
+      "score_delta": 12,
+      "factor_text": "客观睡眠效率偏低，提示晨间光干预可能存在获益空间"
+    },
+    {
+      "id": "sleep_latency_long",
+      "label": "入睡潜伏期延长",
+      "field_path": "sleep_metric.sleep_latency_minutes",
+      "operator": ">=",
+      "value": 30,
+      "score_delta": 8,
+      "factor_text": "入睡潜伏期较长，支持进一步观察干预效果"
+    },
+    {
+      "id": "total_sleep_short",
+      "label": "总睡眠时间偏短",
+      "field_path": "sleep_metric.total_sleep_time_hours",
+      "operator": "<=",
+      "value": 6,
+      "score_delta": 8,
+      "factor_text": "总睡眠时间偏短，提示存在可观察的改善目标"
+    },
+    {
+      "id": "adherence_high",
+      "label": "依从性较高",
+      "field_path": "light_intervention.adherence",
+      "operator": "==",
+      "value": "高",
+      "score_delta": 10,
+      "factor_text": "既往依从性较高，更有利于执行晨间光干预方案"
+    },
+    {
+      "id": "adherence_low",
+      "label": "依从性较低",
+      "field_path": "light_intervention.adherence",
+      "operator": "==",
+      "value": "低",
+      "score_delta": -14,
+      "factor_text": "依从性偏低，需谨慎解释潜在获益并强化短期复评"
+    },
+    {
+      "id": "anxiety_high",
+      "label": "焦虑负担较高",
+      "field_path": "questionnaire_score.anxiety_score",
+      "operator": ">=",
+      "value": 15,
+      "score_delta": -10,
+      "factor_text": "焦虑负担较高，建议联合心理状态复核后再解释推荐结果"
+    },
+    {
+      "id": "depression_high",
+      "label": "抑郁负担较高",
+      "field_path": "questionnaire_score.depression_score",
+      "operator": ">=",
+      "value": 15,
+      "score_delta": -12,
+      "factor_text": "抑郁相关评分偏高，推荐结果需结合情绪评估谨慎使用"
+    },
+    {
+      "id": "sleep_efficiency_high",
+      "label": "睡眠效率接近正常",
+      "field_path": "sleep_metric.sleep_efficiency",
+      "operator": ">=",
+      "value": 90,
+      "score_delta": -10,
+      "factor_text": "睡眠效率已接近正常，预计额外获益空间有限"
+    },
+    {
+      "id": "age_upper",
+      "label": "年龄较高",
+      "field_path": "age",
+      "operator": ">=",
+      "value": 55,
+      "score_delta": -6,
+      "factor_text": "年龄偏高，建议结合并发因素与安全性短期复评"
+    }
+  ],
+  "limitation_templates": [
+    "该结果来自 V1 规则/评分版推荐引擎，仅用于科研原型展示。",
+    "当前未接入正式预测模型或因果推断模型，不能替代临床诊断与治疗。",
+    "规则阈值可在系统设置中调整，不同配置会影响推荐等级与解释文本。"
+  ],
+  "report_footer_notice": "仅供科研辅助，不替代临床诊断与治疗"
+}
