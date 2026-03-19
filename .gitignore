@@ -9,6 +9,7 @@ backend/.env
 backend/app.db
 backend/data/
 backend/app/model_artifacts/*.json
+backend/.tmp-*.log
 
 frontend/node_modules/
 frontend/dist/
