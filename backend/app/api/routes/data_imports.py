@@ -3,18 +3,22 @@ from fastapi.responses import Response
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.api.deps import require_roles
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
+from app.models.user import User
 from app.schemas.importing import ImportHistoryItem, ImportHistoryResponse, ImportSummary, PatientImportResponse
+from app.schemas.user import UserRole
 from app.services.import_service import generate_template_file, import_patients, load_rows_from_upload
 
 router = APIRouter(prefix="/imports", tags=["数据导入"])
-settings = get_settings()
 
 
-@router.get("/template", summary="下载患者导入模板")
-def download_template(format: str = Query(default="csv")) -> Response:
+@router.get("/template", summary="下载受试者导入模板")
+def download_template(
+    format: str = Query(default="csv"),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.DATA_ENTRY)),
+) -> Response:
     try:
         content, media_type, filename = generate_template_file(format)
     except ValueError as exc:
@@ -24,10 +28,11 @@ def download_template(format: str = Query(default="csv")) -> Response:
     return Response(content=content, media_type=media_type, headers=headers)
 
 
-@router.post("/patients", response_model=PatientImportResponse, summary="导入患者数据")
+@router.post("/patients", response_model=PatientImportResponse, summary="导入受试者数据")
 async def import_patients_endpoint(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.DATA_ENTRY)),
 ) -> PatientImportResponse:
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未检测到上传文件")
@@ -35,7 +40,12 @@ async def import_patients_endpoint(
     try:
         file_bytes = await file.read()
         rows = load_rows_from_upload(file.filename, file_bytes)
-        result = import_patients(db, file_name=file.filename, rows=rows, actor_name=settings.demo_username)
+        result = import_patients(
+            db,
+            file_name=file.filename,
+            rows=rows,
+            actor_name=current_user.username,
+        )
         return PatientImportResponse(
             message="导入完成" if result.failed_count == 0 else "导入完成，但存在部分失败记录",
             summary=ImportSummary(
@@ -55,6 +65,7 @@ async def import_patients_endpoint(
 def get_import_history(
     limit: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.DATA_ENTRY)),
 ) -> ImportHistoryResponse:
     logs = db.scalars(
         select(AuditLog)

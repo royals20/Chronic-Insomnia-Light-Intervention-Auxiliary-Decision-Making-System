@@ -12,6 +12,7 @@ from app.api.routes.quality import router as quality_router
 from app.api.routes.recommendations import router as recommendation_router
 from app.api.routes.reports import router as report_router
 from app.api.routes.system_settings import router as system_settings_router
+from app.api.routes.users import router as user_router
 from app.core.config import get_settings
 from app.db.session import init_db
 
@@ -26,8 +27,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
-    description="慢性失眠光干预科研辅助决策系统后端原型服务",
+    version="0.2.0",
+    description="慢性失眠光干预科研辅助决策系统后端服务",
     lifespan=lifespan,
 )
 
@@ -41,6 +42,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(user_router, prefix=settings.api_v1_prefix)
 app.include_router(patient_router, prefix=settings.api_v1_prefix)
 app.include_router(data_import_router, prefix=settings.api_v1_prefix)
 app.include_router(quality_router, prefix=settings.api_v1_prefix)

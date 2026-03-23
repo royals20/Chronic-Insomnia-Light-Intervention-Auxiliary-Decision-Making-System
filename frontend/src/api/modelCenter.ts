@@ -55,9 +55,16 @@ export interface ModelVersionSummary {
   description: string | null;
   artifact_path: string | null;
   engine_backend: string | null;
+  estimator_message: string | null;
+  reproducibility_status: string | null;
   metrics: Record<string, unknown>;
   config: Record<string, unknown>;
   feature_list: string[];
+  selected_feature_keys: string[];
+  random_seed: number | null;
+  test_ratio: number | null;
+  min_feature_coverage: number | null;
+  artifact_generated_at: string | null;
   training_started_at: string | null;
   training_completed_at: string | null;
   created_at: string;
@@ -103,6 +110,7 @@ export interface CausalEvaluationResultResponse {
   observed_group_difference: number | null;
   engine_backend: string;
   estimator_message: string;
+  reproducibility_status: string;
   dataset_record_count: number;
   train_record_count: number;
   validation_record_count: number;
@@ -110,6 +118,11 @@ export interface CausalEvaluationResultResponse {
   control_name: string;
   outcome_name: string;
   selected_feature_names: string[];
+  selected_feature_keys: string[];
+  random_seed: number | null;
+  test_ratio: number | null;
+  min_feature_coverage: number | null;
+  artifact_generated_at: string | null;
   ite_distribution: HistogramBucket[];
   feature_importance: FeatureImportanceItem[];
   subgroup_results: SubgroupResultItem[];

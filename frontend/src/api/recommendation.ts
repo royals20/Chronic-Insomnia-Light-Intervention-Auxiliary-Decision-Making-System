@@ -130,10 +130,18 @@ export async function fetchReportHtml(patientId: number, autoGenerate = true) {
   return data;
 }
 
-export function openPrintReport(patientId: number, autoGenerate = true) {
-  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-  const url = `${baseURL}/reports/html/${patientId}?auto_generate=${autoGenerate ? 'true' : 'false'}`;
-  window.open(url, '_blank');
+export async function openPrintReport(patientId: number, autoGenerate = true) {
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+  if (!printWindow) {
+    return;
+  }
+
+  const html = await fetchReportHtml(patientId, autoGenerate);
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 export async function downloadReportExportList(keyword?: string, level?: string) {

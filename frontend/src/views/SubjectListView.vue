@@ -1,22 +1,30 @@
 <template>
-  <div class="subject-list-page">
+  <div class="page-stack">
     <DisclaimerBanner />
 
-    <el-card shadow="never" class="filter-card">
-      <div class="card-header">
-        <div>
-          <h3>受试者列表</h3>
-          <p>支持新增受试者、搜索、筛选和分页浏览。</p>
-        </div>
-        <el-button type="primary" @click="openCreateDialog">新增受试者</el-button>
-      </div>
+    <PageHeader
+      eyebrow="Subjects"
+      title="受试者工作台"
+      description="围绕档案、录入进度和关键状态组织受试者视图。研究员仅可查看详情，管理员和录入员可继续录入。"
+    >
+      <template #meta>
+        <StatusChip :label="canEditPatient ? '可编辑' : '只读模式'" :tone="canEditPatient ? 'success' : 'warning'" />
+      </template>
+      <template #actions>
+        <ToolbarRow>
+          <el-button v-if="canCreatePatient" type="primary" plain @click="openCreateDialog">新增受试者</el-button>
+          <el-button @click="handleSearch">刷新列表</el-button>
+        </ToolbarRow>
+      </template>
+    </PageHeader>
 
-      <div class="filters">
+    <SectionCard title="筛选与查询" description="按编号、性别和录入完成度快速定位受试者。">
+      <ToolbarRow>
         <el-input
           v-model="keyword"
-          placeholder="按患者编号或匿名编号搜索"
+          placeholder="按受试者编号或匿名编号搜索"
           clearable
-          class="filter-item filter-search"
+          class="search-input"
           @keyup.enter="handleSearch"
           @clear="handleSearch"
         />
@@ -32,7 +40,7 @@
           <el-option label="未录入随访" value="false" />
         </el-select>
 
-        <el-select v-model="interventionFilter" placeholder="光干预状态" class="filter-item">
+        <el-select v-model="interventionFilter" placeholder="干预状态" class="filter-item">
           <el-option label="全部干预状态" value="all" />
           <el-option label="已录入干预" value="true" />
           <el-option label="未录入干预" value="false" />
@@ -40,50 +48,72 @@
 
         <el-button type="primary" plain @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
-      </div>
-    </el-card>
+      </ToolbarRow>
+    </SectionCard>
 
-    <el-card shadow="never" class="table-card">
+    <SectionCard title="受试者列表" description="表格右侧操作会按角色自动裁剪。">
       <el-table v-loading="loading" :data="patients" stripe>
-        <el-table-column prop="patient_code" label="患者编号" min-width="120" />
-        <el-table-column prop="anonymized_code" label="匿名编号" min-width="120" />
-        <el-table-column prop="gender" label="性别" width="80" />
-        <el-table-column prop="age" label="年龄" width="80" />
-        <el-table-column prop="education_level" label="教育程度" min-width="100" />
-        <el-table-column label="基线" width="90">
+        <el-table-column prop="patient_code" label="受试者编号" min-width="130" />
+        <el-table-column prop="anonymized_code" label="匿名编号" min-width="130" />
+        <el-table-column prop="gender" label="性别" width="90" />
+        <el-table-column prop="age" label="年龄" width="90" />
+        <el-table-column prop="education_level" label="教育程度" min-width="110" />
+        <el-table-column label="基线" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.has_baseline_feature ? 'success' : 'info'" effect="light">
-              {{ row.has_baseline_feature ? '已录入' : '待录入' }}
-            </el-tag>
+            <StatusChip :label="row.has_baseline_feature ? '已录入' : '待录入'" :tone="row.has_baseline_feature ? 'success' : 'neutral'" />
           </template>
         </el-table-column>
-        <el-table-column label="干预" width="90">
+        <el-table-column label="干预" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.has_light_intervention ? 'success' : 'info'" effect="light">
-              {{ row.has_light_intervention ? '已录入' : '待录入' }}
-            </el-tag>
+            <StatusChip :label="row.has_light_intervention ? '已录入' : '待录入'" :tone="row.has_light_intervention ? 'success' : 'neutral'" />
           </template>
         </el-table-column>
-        <el-table-column label="随访" width="90">
+        <el-table-column label="随访" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.has_followup_outcome ? 'success' : 'warning'" effect="light">
-              {{ row.has_followup_outcome ? '已录入' : '待录入' }}
-            </el-tag>
+            <StatusChip :label="row.has_followup_outcome ? '已录入' : '待录入'" :tone="row.has_followup_outcome ? 'success' : 'warning'" />
           </template>
         </el-table-column>
-        <el-table-column label="更新时间" min-width="170">
+        <el-table-column label="更新时间" min-width="180">
           <template #default="{ row }">
             {{ formatDateTime(row.updated_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right">
+        <el-table-column label="操作" min-width="260" fixed="right">
           <template #default="{ row }">
-            <div class="action-buttons">
+            <div class="table-actions">
               <el-button text type="primary" @click="goToDetail(row.id)">详情</el-button>
-              <el-button text type="primary" @click="goToSection(row.id, 'baseline')">基线</el-button>
-              <el-button text type="primary" @click="goToSection(row.id, 'questionnaire')">量表</el-button>
-              <el-button text type="primary" @click="goToSection(row.id, 'light')">干预</el-button>
-              <el-button text type="primary" @click="goToSection(row.id, 'followup')">随访</el-button>
+              <el-button
+                v-if="canEditPatient"
+                text
+                type="primary"
+                @click="goToSection(row.id, 'baseline')"
+              >
+                基线
+              </el-button>
+              <el-button
+                v-if="canEditPatient"
+                text
+                type="primary"
+                @click="goToSection(row.id, 'questionnaire')"
+              >
+                量表
+              </el-button>
+              <el-button
+                v-if="canEditPatient"
+                text
+                type="primary"
+                @click="goToSection(row.id, 'light')"
+              >
+                干预
+              </el-button>
+              <el-button
+                v-if="canEditPatient"
+                text
+                type="primary"
+                @click="goToSection(row.id, 'followup')"
+              >
+                随访
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -99,13 +129,13 @@
           @current-change="handlePageChange"
         />
       </div>
-    </el-card>
+    </SectionCard>
 
     <el-dialog v-model="createDialogVisible" title="新增受试者" width="720px">
       <el-form ref="formRef" :model="createForm" :rules="rules" label-position="top">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="患者编号" prop="patient_code">
+            <el-form-item label="受试者编号" prop="patient_code">
               <el-input v-model="createForm.patient_code" placeholder="例如 PAT-202603-001" />
             </el-form-item>
           </el-col>
@@ -149,7 +179,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
-              <el-input v-model="createForm.remarks" type="textarea" :rows="3" placeholder="可填写纳入备注或来源信息" />
+              <el-input v-model="createForm.remarks" type="textarea" :rows="3" placeholder="可填写来源或录入说明" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -166,14 +196,20 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import DisclaimerBanner from '@/components/DisclaimerBanner.vue';
+import PageHeader from '@/components/PageHeader.vue';
+import SectionCard from '@/components/SectionCard.vue';
+import StatusChip from '@/components/StatusChip.vue';
+import ToolbarRow from '@/components/ToolbarRow.vue';
 import { createPatient, fetchPatients, type PatientCreatePayload, type PatientListItem } from '@/api/subjects';
+import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@/utils/format';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const loading = ref(false);
 const creating = ref(false);
 const patients = ref<PatientListItem[]>([]);
@@ -187,6 +223,9 @@ const interventionFilter = ref<'all' | 'true' | 'false'>('all');
 const createDialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
+const canCreatePatient = computed(() => authStore.can('create_patient'));
+const canEditPatient = computed(() => authStore.can('edit_patient'));
+
 const createForm = reactive<PatientCreatePayload>({
   patient_code: '',
   anonymized_code: '',
@@ -199,7 +238,7 @@ const createForm = reactive<PatientCreatePayload>({
 });
 
 const rules: FormRules<PatientCreatePayload> = {
-  patient_code: [{ required: true, message: '请输入患者编号', trigger: 'blur' }],
+  patient_code: [{ required: true, message: '请输入受试者编号', trigger: 'blur' }],
   anonymized_code: [{ required: true, message: '请输入匿名编号', trigger: 'blur' }],
   gender: [{ required: true, message: '请选择性别', trigger: 'change' }],
   age: [{ required: true, message: '请输入年龄', trigger: 'change' }],
@@ -259,6 +298,9 @@ function handlePageChange(nextPage: number) {
 }
 
 function openCreateDialog() {
+  if (!canCreatePatient.value) {
+    return;
+  }
   createDialogVisible.value = true;
 }
 
@@ -312,54 +354,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.subject-list-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.filter-card,
-.table-card {
-  border-radius: 16px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 18px;
-}
-
-.card-header h3 {
-  margin: 0 0 8px;
-  color: #173654;
-  font-size: 22px;
-}
-
-.card-header p {
-  margin: 0;
-  color: #728397;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+.search-input {
+  width: min(320px, 100%);
 }
 
 .filter-item {
   width: 180px;
-}
-
-.filter-search {
-  width: 280px;
-}
-
-.action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .pagination-wrap {
@@ -368,18 +368,9 @@ onMounted(() => {
   margin-top: 20px;
 }
 
-.full-width {
-  width: 100%;
-}
-
 @media (max-width: 960px) {
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .filter-item,
-  .filter-search {
+  .search-input,
+  .filter-item {
     width: 100%;
   }
 }

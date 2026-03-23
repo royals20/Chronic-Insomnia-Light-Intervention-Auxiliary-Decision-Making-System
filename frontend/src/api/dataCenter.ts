@@ -12,6 +12,11 @@ export interface PatientListItem {
   remarks: string | null;
   created_at: string;
   updated_at: string;
+  has_baseline_feature: boolean;
+  has_questionnaire_score: boolean;
+  has_sleep_metric: boolean;
+  has_light_intervention: boolean;
+  has_followup_outcome: boolean;
 }
 
 export interface PatientListResponse {
@@ -53,7 +58,7 @@ export interface ImportHistoryItem {
   failed_count: number | null;
 }
 
-export async function fetchPatients(params: { page: number; page_size: number; keyword?: string }) {
+export async function fetchPatients(params: { page: number; page_size: number; keyword?: string; ids?: number[] }) {
   const { data } = await apiClient.get<PatientListResponse>('/patients', { params });
   return data;
 }

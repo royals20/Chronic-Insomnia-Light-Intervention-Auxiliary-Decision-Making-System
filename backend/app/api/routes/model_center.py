@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_roles
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.model_center import (
     ActiveModelResponse,
     CausalEvaluationResultResponse,
@@ -10,6 +12,7 @@ from app.schemas.model_center import (
     DatasetOverviewResponse,
     ModelVersionSummary,
 )
+from app.schemas.user import UserRole
 from app.services.model_center_service import (
     activate_model_version,
     get_active_model,
@@ -27,6 +30,7 @@ def dataset_overview(
     max_features: int = Query(default=10, ge=4, le=16),
     min_feature_coverage: float = Query(default=0.7, ge=0.3, le=1.0),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> DatasetOverviewResponse:
     return get_dataset_overview(
         db,
@@ -39,9 +43,10 @@ def dataset_overview(
 def train_model(
     payload: CausalTrainingRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> CausalTrainingResponse:
     try:
-        return train_causal_model(db, payload)
+        return train_causal_model(db, payload, actor_name=current_user.username)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -50,6 +55,7 @@ def train_model(
 def version_list(
     version_type: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> list[ModelVersionSummary]:
     return list_model_versions(db, version_type=version_type)
 
@@ -58,6 +64,7 @@ def version_list(
 def active_model(
     version_type: str = Query(default="causal"),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> ActiveModelResponse:
     return get_active_model(db, version_type=version_type)
 
@@ -66,9 +73,10 @@ def active_model(
 def activate_version(
     version_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> ModelVersionSummary:
     try:
-        return activate_model_version(db, version_id)
+        return activate_model_version(db, version_id, actor_name=current_user.username)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -77,6 +85,7 @@ def activate_version(
 def causal_results(
     model_version_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> CausalEvaluationResultResponse:
     try:
         return get_causal_evaluation_result(db, model_version_id=model_version_id)

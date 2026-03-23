@@ -41,6 +41,43 @@ def _safe_slug(value: str) -> str:
     return slug or "causal-model"
 
 
+def _safe_int(value) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_reproducibility_status(backend_name: str | None) -> str:
+    if not backend_name:
+        return "unknown"
+    if backend_name.startswith("econml"):
+        return "real_estimator"
+    if backend_name.startswith("fallback"):
+        return "fallback_demo"
+    return "unknown"
+
+
+def _build_estimator_message(backend_name: str | None) -> str:
+    reproducibility_status = _build_reproducibility_status(backend_name)
+    if reproducibility_status == "real_estimator":
+        return "当前结果基于 econml 因果森林接口生成，训练参数和特征选择信息可用于实验复现。"
+    if reproducibility_status == "fallback_demo":
+        return "当前环境缺少真实因果估计依赖，系统已回退到演示级 fallback 估计器；结果可用于流程验证，不应用作正式研究结论。"
+    return "当前模型后端信息不完整，请结合模型版本配置确认实验环境。"
+
+
 def _build_model_version_summary(model_version: ModelVersion) -> ModelVersionSummary:
     metrics = model_version.metrics
     config = model_version.config
@@ -52,9 +89,20 @@ def _build_model_version_summary(model_version: ModelVersion) -> ModelVersionSum
         description=model_version.description,
         artifact_path=model_version.artifact_path,
         engine_backend=metrics.get("engine_backend") or config.get("engine_backend"),
+        estimator_message=metrics.get("estimator_message") or config.get("estimator_message"),
+        reproducibility_status=metrics.get("reproducibility_status")
+        or config.get("reproducibility_status"),
         metrics=metrics,
         config=config,
         feature_list=model_version.feature_list,
+        selected_feature_keys=[
+            str(item)
+            for item in config.get("selected_feature_keys", model_version.feature_list)
+        ],
+        random_seed=_safe_int(config.get("random_seed")),
+        test_ratio=_safe_float(config.get("test_ratio")),
+        min_feature_coverage=_safe_float(config.get("min_feature_coverage")),
+        artifact_generated_at=config.get("artifact_generated_at"),
         training_started_at=model_version.training_started_at,
         training_completed_at=model_version.training_completed_at,
         created_at=model_version.created_at,
@@ -233,6 +281,7 @@ def _build_result_response(
         observed_group_difference=artifact.get("observed_group_difference"),
         engine_backend=str(artifact.get("engine_backend", "unknown")),
         estimator_message=str(artifact.get("estimator_message", "")),
+        reproducibility_status=str(artifact.get("reproducibility_status", "unknown")),
         dataset_record_count=int(artifact.get("dataset_record_count", 0)),
         train_record_count=int(artifact.get("train_record_count", 0)),
         validation_record_count=int(artifact.get("validation_record_count", 0)),
@@ -240,6 +289,11 @@ def _build_result_response(
         control_name=str(artifact.get("control_name", "")),
         outcome_name=str(artifact.get("outcome_name", "")),
         selected_feature_names=[str(item) for item in artifact.get("selected_feature_names", [])],
+        selected_feature_keys=[str(item) for item in artifact.get("selected_feature_keys", [])],
+        random_seed=_safe_int(artifact.get("random_seed")),
+        test_ratio=_safe_float(artifact.get("test_ratio")),
+        min_feature_coverage=_safe_float(artifact.get("min_feature_coverage")),
+        artifact_generated_at=artifact.get("artifact_generated_at"),
         ite_distribution=[
             HistogramBucket.model_validate(item)
             for item in artifact.get("ite_distribution", [])
@@ -345,7 +399,12 @@ def get_active_model(
     return ActiveModelResponse(active_model=_build_model_version_summary(model_version))
 
 
-def activate_model_version(db: Session, version_id: int) -> ModelVersionSummary:
+def activate_model_version(
+    db: Session,
+    version_id: int,
+    *,
+    actor_name: str | None = None,
+) -> ModelVersionSummary:
     model_version = db.get(ModelVersion, version_id)
     if model_version is None:
         raise ValueError("模型版本不存在。")
@@ -359,7 +418,7 @@ def activate_model_version(db: Session, version_id: int) -> ModelVersionSummary:
 
     add_audit_log(
         db,
-        actor_name=settings.demo_username,
+        actor_name=actor_name or settings.demo_username,
         action_type="activate_model_version",
         target_type="model_version",
         target_id=str(model_version.id),
@@ -377,6 +436,8 @@ def activate_model_version(db: Session, version_id: int) -> ModelVersionSummary:
 def train_causal_model(
     db: Session,
     payload: CausalTrainingRequest,
+    *,
+    actor_name: str | None = None,
 ) -> CausalTrainingResponse:
     dataset = build_causal_dataset(
         db,
@@ -407,6 +468,8 @@ def train_causal_model(
 
     ranked_features = _feature_importance(dataset, all_effects)
     subgroup_results = _subgroup_results(dataset, all_effects, ranked_features)
+    estimator_message = _build_estimator_message(estimator.backend_name)
+    reproducibility_status = _build_reproducibility_status(estimator.backend_name)
     metrics = {
         "ate": round(mean(all_effects), 4),
         "validation_ate": round(mean(validation_effects), 4) if validation_effects else None,
@@ -415,6 +478,8 @@ def train_causal_model(
         "train_record_count": len(train_records),
         "validation_record_count": len(validation_records),
         "engine_backend": estimator.backend_name,
+        "estimator_message": estimator_message,
+        "reproducibility_status": reproducibility_status,
     }
     completed_at = datetime.utcnow()
 
@@ -438,7 +503,15 @@ def train_causal_model(
                 "max_features": payload.max_features,
                 "min_feature_coverage": payload.min_feature_coverage,
                 "selected_feature_names": [spec.name for spec in dataset.selected_features],
+                "selected_feature_keys": [spec.name for spec in dataset.selected_features],
+                "selected_feature_labels": [spec.label for spec in dataset.selected_features],
+                "requested_feature_names": payload.feature_names or [],
                 "engine_backend": estimator.backend_name,
+                "estimator_message": estimator_message,
+                "reproducibility_status": reproducibility_status,
+                "train_patient_ids": [record.patient_id for record in train_records],
+                "validation_patient_ids": [record.patient_id for record in validation_records],
+                "artifact_generated_at": completed_at.isoformat(),
             },
             ensure_ascii=False,
         ),
@@ -457,10 +530,8 @@ def train_causal_model(
         "validation_ate": metrics["validation_ate"],
         "observed_group_difference": metrics["observed_group_difference"],
         "engine_backend": estimator.backend_name,
-        "estimator_message": (
-            "当前结果基于可运行的因果估计接口生成。若本地已安装 econml/sklearn，将优先使用真实因果森林接口；"
-            "否则自动回退到占位估计器。"
-        ),
+        "estimator_message": estimator_message,
+        "reproducibility_status": reproducibility_status,
         "dataset_record_count": len(dataset.records),
         "train_record_count": len(train_records),
         "validation_record_count": len(validation_records),
@@ -469,6 +540,12 @@ def train_causal_model(
         "outcome_name": dataset.outcome_name,
         "selected_feature_names": [spec.label for spec in dataset.selected_features],
         "selected_feature_keys": [spec.name for spec in dataset.selected_features],
+        "random_seed": payload.random_seed,
+        "test_ratio": payload.test_ratio,
+        "min_feature_coverage": payload.min_feature_coverage,
+        "artifact_generated_at": completed_at.isoformat(),
+        "train_patient_ids": [record.patient_id for record in train_records],
+        "validation_patient_ids": [record.patient_id for record in validation_records],
         "ite_distribution": [bucket.model_dump() for bucket in _build_histogram(all_effects)],
         "feature_importance": [item.model_dump() for item in ranked_features[:10]],
         "subgroup_results": [item.model_dump() for item in subgroup_results],
@@ -495,7 +572,7 @@ def train_causal_model(
 
     add_audit_log(
         db,
-        actor_name=settings.demo_username,
+        actor_name=actor_name or settings.demo_username,
         action_type="train_causal_model",
         target_type="model_version",
         target_id=str(model_version.id),

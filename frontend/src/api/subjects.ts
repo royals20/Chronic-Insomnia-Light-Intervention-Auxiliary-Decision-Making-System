@@ -120,6 +120,7 @@ export interface PatientQueryParams {
   page: number;
   page_size: number;
   keyword?: string;
+  ids?: number[];
   gender?: string;
   has_baseline_feature?: boolean;
   has_light_intervention?: boolean;
@@ -137,28 +138,55 @@ export interface PatientCreatePayload {
   remarks: string | null;
 }
 
-export interface DataQualitySummary {
-  total_patients: number;
-  missing_fields: Array<{
-    field_label: string;
-    missing_count: number;
-    missing_rate: number;
-  }>;
-  completion_stats: Array<{
-    field_label: string;
-    completed_count: number;
-    completion_rate: number;
-  }>;
-  anomalies: Array<{
-    patient_code: string;
-    anonymized_code: string;
-    issue_type: string;
-    severity: string;
-    message: string;
-  }>;
-  gender_distribution: Array<{ name: string; value: number }>;
-  section_completion: Array<{ name: string; value: number }>;
-  age_bucket_distribution: Array<{ name: string; value: number }>;
+export interface QualityPatientIssue {
+  patient_id: number | null;
+  patient_code: string | null;
+  anonymized_code: string | null;
+  issue_code: string;
+  issue_type: string;
+  section: string;
+  severity: string;
+  message: string;
+  suggested_action: string;
+  blocking: boolean;
+}
+
+export interface QualitySuggestedFix {
+  issue_code: string;
+  title: string;
+  description: string;
+  priority: string;
+  patient_count: number;
+  affected_patient_ids: number[];
+}
+
+export interface DataQualityResponse {
+  summary: {
+    total_patients: number;
+    complete_patients: number;
+    modeling_ready_patients: number;
+    blocking_issue_count: number;
+    warning_issue_count: number;
+    affected_patient_count: number;
+    average_completion_rate: number;
+    missing_fields: Array<{
+      field_label: string;
+      missing_count: number;
+      missing_rate: number;
+    }>;
+    completion_stats: Array<{
+      field_label: string;
+      completed_count: number;
+      completion_rate: number;
+    }>;
+    gender_distribution: Array<{ name: string; value: number }>;
+    section_completion: Array<{ name: string; value: number }>;
+    age_bucket_distribution: Array<{ name: string; value: number }>;
+  };
+  blocking_issues: QualityPatientIssue[];
+  warning_issues: QualityPatientIssue[];
+  suggested_fixes: QualitySuggestedFix[];
+  affected_patient_ids: number[];
 }
 
 export async function fetchPatients(params: PatientQueryParams) {
@@ -207,6 +235,6 @@ export async function saveFollowupOutcome(patientId: number, payload: FollowupOu
 }
 
 export async function fetchQualitySummary() {
-  const { data } = await apiClient.get<DataQualitySummary>('/quality/summary');
+  const { data } = await apiClient.get<DataQualityResponse>('/quality/summary');
   return data;
 }

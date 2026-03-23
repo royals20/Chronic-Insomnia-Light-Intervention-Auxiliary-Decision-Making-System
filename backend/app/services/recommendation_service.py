@@ -233,6 +233,7 @@ def evaluate_patient(
     patient_id: int,
     *,
     save_result: bool = True,
+    actor_name: str | None = None,
 ) -> RecommendationEvaluationResult:
     config = load_recommendation_config()
     patient = db.scalar(build_patient_detail_query().where(Patient.id == patient_id))
@@ -286,7 +287,7 @@ def evaluate_patient(
         prediction.model_version = model_version
         add_audit_log(
             db,
-            actor_name="research_demo",
+            actor_name=actor_name or "research_demo",
             action_type="run_recommendation",
             target_type="prediction_result",
             target_id=str(patient.id),
@@ -320,12 +321,20 @@ def evaluate_patients_batch(
     patient_ids: list[int],
     *,
     save_result: bool = True,
+    actor_name: str | None = None,
 ) -> BatchEvaluateResponse:
     results: list[RecommendationEvaluationResult] = []
     errors: list[str] = []
     for patient_id in patient_ids:
         try:
-            results.append(evaluate_patient(db, patient_id, save_result=save_result))
+            results.append(
+                evaluate_patient(
+                    db,
+                    patient_id,
+                    save_result=save_result,
+                    actor_name=actor_name,
+                )
+            )
         except ValueError as exc:
             errors.append(str(exc))
 

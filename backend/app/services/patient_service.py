@@ -42,12 +42,15 @@ def list_patients(
     page: int,
     page_size: int,
     keyword: str | None,
+    ids: list[int] | None = None,
     gender: str | None = None,
     has_baseline_feature: bool | None = None,
     has_light_intervention: bool | None = None,
     has_followup_outcome: bool | None = None,
 ):
     filters = []
+    if ids:
+        filters.append(Patient.id.in_(ids))
     if keyword:
         pattern = f"%{keyword.strip()}%"
         filters.append(
@@ -159,7 +162,12 @@ def _sync_prediction_result(db: Session, patient: Patient, payload) -> None:
     existing.model_version = version
 
 
-def create_patient(db: Session, payload: PatientCreate) -> Patient:
+def create_patient(
+    db: Session,
+    payload: PatientCreate,
+    *,
+    actor_name: str | None = None,
+) -> Patient:
     patient = Patient(
         **payload.model_dump(
             exclude={
@@ -184,7 +192,7 @@ def create_patient(db: Session, payload: PatientCreate) -> Patient:
 
     add_audit_log(
         db,
-        actor_name=settings.demo_username,
+        actor_name=actor_name or settings.demo_username,
         action_type="create_patient",
         target_type="patient",
         target_id=str(patient.id),
@@ -195,7 +203,13 @@ def create_patient(db: Session, payload: PatientCreate) -> Patient:
     return get_patient_by_id(db, patient.id)
 
 
-def update_patient(db: Session, patient: Patient, payload: PatientUpdate) -> Patient:
+def update_patient(
+    db: Session,
+    patient: Patient,
+    payload: PatientUpdate,
+    *,
+    actor_name: str | None = None,
+) -> Patient:
     patient_data = payload.model_dump(
         exclude_none=True,
         exclude={
@@ -219,7 +233,7 @@ def update_patient(db: Session, patient: Patient, payload: PatientUpdate) -> Pat
 
     add_audit_log(
         db,
-        actor_name=settings.demo_username,
+        actor_name=actor_name or settings.demo_username,
         action_type="update_patient",
         target_type="patient",
         target_id=str(patient.id),
@@ -230,12 +244,17 @@ def update_patient(db: Session, patient: Patient, payload: PatientUpdate) -> Pat
     return get_patient_by_id(db, patient.id)
 
 
-def delete_patient(db: Session, patient: Patient) -> None:
+def delete_patient(
+    db: Session,
+    patient: Patient,
+    *,
+    actor_name: str | None = None,
+) -> None:
     patient_code = patient.patient_code
     patient_id = patient.id
     add_audit_log(
         db,
-        actor_name=settings.demo_username,
+        actor_name=actor_name or settings.demo_username,
         action_type="delete_patient",
         target_type="patient",
         target_id=str(patient_id),

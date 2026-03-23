@@ -1,64 +1,69 @@
 import { defineStore } from 'pinia';
 
-import apiClient from '@/api/client';
-
-interface LoginPayload {
-  username: string;
-  password: string;
-}
-
-interface AuthUser {
-  id: number;
-  username: string;
-  full_name: string;
-}
-
-interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  message: string;
-  user: AuthUser;
-}
-
-const TOKEN_KEY = 'insomnia-demo-token';
-const USER_KEY = 'insomnia-demo-user';
-
-function loadUser(): AuthUser | null {
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    localStorage.removeItem(USER_KEY);
-    return null;
-  }
-}
+import type { Capability, UserRole } from '@/auth/access';
+import { hasCapability } from '@/auth/access';
+import { clearStoredSession, loadStoredExpiresAt, loadStoredToken, loadStoredUser, persistSession } from '@/auth/session';
+import { fetchCurrentUser, loginRequest, type AuthUser, type LoginPayload } from '@/api/auth';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    token: localStorage.getItem(TOKEN_KEY) || '',
-    user: loadUser() as AuthUser | null,
+    token: loadStoredToken(),
+    user: loadStoredUser() as AuthUser | null,
+    expiresAt: loadStoredExpiresAt(),
+    initialized: false,
   }),
   getters: {
-    isAuthenticated: (state) => Boolean(state.token),
+    isAuthenticated: (state) => Boolean(state.token && state.user),
+    role: (state): UserRole | null => state.user?.role || null,
+    isExpired: (state) => Boolean(state.expiresAt && state.expiresAt <= Date.now()),
   },
   actions: {
+    can(capability: Capability) {
+      return hasCapability(this.user?.role, capability);
+    },
+    async ensureSession() {
+      if (!this.token) {
+        this.initialized = true;
+        return false;
+      }
+
+      if (this.isExpired) {
+        this.logout();
+        this.initialized = true;
+        return false;
+      }
+
+      if (this.user && this.initialized) {
+        return true;
+      }
+
+      try {
+        const { user } = await fetchCurrentUser();
+        this.user = user;
+        localStorage.setItem('insomnia-demo-user', JSON.stringify(user));
+        this.initialized = true;
+        return true;
+      } catch {
+        this.logout();
+        this.initialized = true;
+        return false;
+      }
+    },
     async login(payload: LoginPayload) {
-      const { data } = await apiClient.post<LoginResponse>('/auth/login', payload);
+      const data = await loginRequest(payload);
       this.token = data.access_token;
       this.user = data.user;
-      localStorage.setItem(TOKEN_KEY, data.access_token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      this.expiresAt = Date.now() + data.expires_in * 1000;
+      this.initialized = true;
+      persistSession(data.access_token, data.user, this.expiresAt);
       return data;
     },
     logout() {
       this.token = '';
       this.user = null;
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
+      this.expiresAt = 0;
+      this.initialized = true;
+      clearStoredSession();
     },
   },
 });

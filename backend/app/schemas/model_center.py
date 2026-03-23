@@ -58,9 +58,16 @@ class ModelVersionSummary(BaseModel):
     description: str | None = None
     artifact_path: str | None = None
     engine_backend: str | None = None
+    estimator_message: str | None = None
+    reproducibility_status: str | None = None
     metrics: dict
     config: dict
     feature_list: list[str]
+    selected_feature_keys: list[str] = []
+    random_seed: int | None = None
+    test_ratio: float | None = None
+    min_feature_coverage: float | None = None
+    artifact_generated_at: datetime | None = None
     training_started_at: datetime | None = None
     training_completed_at: datetime | None = None
     created_at: datetime
@@ -106,6 +113,7 @@ class CausalEvaluationResultResponse(BaseModel):
     observed_group_difference: float | None = None
     engine_backend: str
     estimator_message: str
+    reproducibility_status: str
     dataset_record_count: int
     train_record_count: int
     validation_record_count: int
@@ -113,6 +121,11 @@ class CausalEvaluationResultResponse(BaseModel):
     control_name: str
     outcome_name: str
     selected_feature_names: list[str]
+    selected_feature_keys: list[str]
+    random_seed: int | None = None
+    test_ratio: float | None = None
+    min_feature_coverage: float | None = None
+    artifact_generated_at: datetime | None = None
     ite_distribution: list[HistogramBucket]
     feature_importance: list[FeatureImportanceItem]
     subgroup_results: list[SubgroupResultItem]

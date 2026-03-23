@@ -1,4 +1,8 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.user import UserRole
 
 
 class LoginRequest(BaseModel):
@@ -10,6 +14,8 @@ class UserInfo(BaseModel):
     id: int
     username: str
     full_name: str
+    role: UserRole
+    is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -17,5 +23,11 @@ class UserInfo(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_in: int
     user: UserInfo
     message: str
+
+
+class AuthMeResponse(BaseModel):
+    user: UserInfo
+    checked_at: datetime

@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_roles
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.report import ReportPreviewResponse
+from app.schemas.user import UserRole
 from app.services.recommendation_service import list_recommendation_history
 from app.services.report_service import build_report_preview, render_export_csv, render_report_html
 
@@ -15,6 +18,7 @@ def get_report_preview(
     patient_id: int,
     auto_generate: bool = Query(default=False),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> ReportPreviewResponse:
     try:
         return build_report_preview(db, patient_id, auto_generate=auto_generate)
@@ -27,6 +31,7 @@ def get_report_html(
     patient_id: int,
     auto_generate: bool = Query(default=False),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> Response:
     try:
         report = build_report_preview(db, patient_id, auto_generate=auto_generate)
@@ -40,6 +45,7 @@ def export_report_list(
     keyword: str | None = Query(default=None),
     level: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.ADMIN, UserRole.RESEARCHER)),
 ) -> Response:
     history = list_recommendation_history(
         db,

@@ -1,19 +1,20 @@
-# 慢性失眠光干预科研辅助决策系统原型
+# 慢性失眠光干预科研辅助决策系统科研平台化原型
 
-本项目是一个面向硕士论文、科研演示和软件著作权申请的单仓库原型系统，用于展示“慢性失眠光干预科研辅助决策系统”的基础数据层、演示级推荐引擎、报告流程和因果获益评估流程。
+本项目是一个面向硕士论文、科研演示、实验复现和软件著作权申请的单仓库科研平台化原型系统，用于展示“慢性失眠光干预科研辅助决策系统”的基础数据层、规则推荐链路、数据质量治理、报告流程和因果获益评估流程。
 
 > 说明：本系统仅供科研辅助，不替代临床诊断与治疗。
 
 ## 项目定位
 
-- 当前目标：提供一个可运行、可演示、可扩展的科研原型。
-- 适用场景：论文展示、科研汇报、课题中期检查、软著材料准备。
+- 当前目标：提供一个可运行、可演示、可复现、可扩展的科研平台化原型。
+- 适用场景：论文展示、科研汇报、课题中期检查、软著材料准备、方法学演示与实验记录。
 - 非目标：真实 HIS 对接、设备实时接入、移动端、正式临床决策支持。
 
 ## 技术栈
 
 - 后端：FastAPI + SQLAlchemy + Pydantic + SQLite
 - 前端：Vue3 + Vite + TypeScript + Element Plus + Pinia + Vue Router + ECharts
+- 测试与校验：Pytest + Vitest + GitHub Actions
 - 启动方式：本地开发 + Docker Compose
 
 ## 目录结构
@@ -158,6 +159,31 @@ npm run dev
 docker-compose -p insomnia-research up --build
 ```
 
+## 测试与校验
+
+### 后端测试
+
+```powershell
+cd backend
+.venv\Scripts\python -m pytest
+```
+
+### 前端测试
+
+```powershell
+cd frontend
+npm run test
+```
+
+### 前端类型检查与构建
+
+```powershell
+cd frontend
+npm run build
+```
+
+> 说明：当前仓库已补充基础后端测试、前端单测与 `.github/workflows/ci.yml` 持续集成流程。
+
 ## 当前主要页面
 
 - 登录页
@@ -178,6 +204,13 @@ docker-compose -p insomnia-research up --build
 - 系统设置页
 
 ## 当前演示能力
+
+### 0. 数据质量与实验地基
+
+- 数据质量页输出结构化 `summary / blocking_issues / warning_issues / suggested_fixes / affected_patient_ids`
+- 支持字段合法性、跨表一致性、建模可用性三层检查
+- 数据中心支持按“待补录/复核受试者”联动筛选
+- 模型中心在训练前直接提示阻塞性数据问题
 
 ### 1. 规则/评分版推荐引擎
 
@@ -217,7 +250,8 @@ docker-compose -p insomnia-research up --build
 当前实现说明：
 
 - 优先尝试真实因果估计器风格接口
-- 若本地缺少复杂依赖，则自动降级到可运行的占位估计器
+- 若本地缺少复杂依赖，则自动降级到可运行的 fallback 估计器
+- 训练结果会记录随机种子、特征键、覆盖率阈值、训练/验证拆分信息与复现状态
 - 模型版本仍保存为 `causal` 类型，页面和接口流程保持不变
 
 ## Causal 模式的数据要求
@@ -345,12 +379,13 @@ docker-compose -p insomnia-research up --build
 - 10 张核心表
 - 数据库初始化与 100 例模拟数据脚本
 - 患者 CRUD 与导入接口
-- 数据中心与数据质量页面
+- 数据中心与结构化数据质量页面
 - 受试者管理与分项录入页面
 - 规则/评分版推荐引擎
 - 推荐报告预览与导出
-- 模型中心
-- 因果获益评估演示流程
+- 模型中心版本管理、参数复用与版本对比
+- 因果获益评估演示流程与复现性元数据
+- 后端 Pytest、前端 Vitest、GitHub Actions CI
 
 ## 当前未完成
 
